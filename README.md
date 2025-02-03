@@ -13,7 +13,7 @@ The notification depends on [herbe](https://github.com/dudik/herbe). Default: le
 make && make install
 ```
 
-You can update your status bar with the stdout print (the prayer countdown) as below:
+You can update your status bar with the stdout print (which is date, time, and the prayer countdown) as below:
 ```sh
 mkfifo /tmp/horologion
 ctimer > /tmp/horologion &

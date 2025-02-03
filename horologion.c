@@ -130,23 +130,29 @@ int main(void)
         while (!stop_flag) {
                 time_t now = time(NULL);
                 struct tm *t = localtime(&now);
-                int now_m = t->tm_hour * 60 + t->tm_min;
-                int index = 0, until = 0;
+                int hh = t->tm_hour, mm = t->tm_min;
+                int now_m = hh * 60 + mm;
 
-                /* pick the next prayer
-                 * note: will skip prayer if now is exactly prayer time */
+                /* determine the next prayer and compute countdown */
+                int index = 0, until = 0;
                 for (int i = 0; i < 8; ++i) {
                         if (now_m >= sch_arr[i])
                                 continue;
                         index = i;
                         break;
                 }
-
-                /* compute time until next prayer and print it */
                 until = sch_arr[index] - now_m;
-                int hours = until / 60;
-                int minutes = until % 60; 
-                printf("\r%s in %02d:%02d\n", name[index], hours, minutes);
+                if (until < 0) until += 1440; // normalise by adding a day
+                int cnthr = until / 60;
+                int cntmn = until % 60; 
+
+                /* add date and time, print */
+                char date[32];
+                strftime(date, sizeof(date), "%A, %d %b", t);
+                printf("\r%02d:%02d %s, %s in %02d:%02d\n", 
+                        hh, mm, date, name[index], cnthr, cntmn);
+
+
 
                 /* notify user one minute ahead:
                  * - left click to dismiss
