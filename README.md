@@ -1,22 +1,25 @@
 # horologion
 
 - Calculates local prayer times
-- Tracks time until next prayer in log file
+- Tracks time until next prayer and prints it every minute
 - Notifies user a minute ahead, and optionally displays corresponding prayer in terminal
 
-The notification depends on [herbe](https://github.com/dudik/herbe).
+You should change the variables in config.h before compilation according to your use case.
 
-The prayers are in ```~/.local/share/horologion``` and they are in Church Slavonic. Edit them as needed. The log is in the same folder. You could, for example, tail it in a status bar.
+The notification depends on [herbe](https://github.com/dudik/herbe). Default: left-click to dismiss, right-click to display prayer. They are by default in Church Slavonic: edit the files in ```~/.local/share/horologion``` as you wish.
 
 ## Installation
 ```sh
-make && sudo make install
+make && make install
 ```
 
-To run at start-up, add the following to your ~/.xinitrc or equivalent:
+You can update your status bar with the stdout print (the prayer countdown) as below:
 ```sh
-horologion &
+mkfifo /tmp/horologion
+ctimer > /tmp/horologion &
+while read line; do
+    xsetroot -name "$line"
+done < /tmp/horologion
 ```
 
-## Settings
-The location (determines sunrise/sunset) and terminal can be changed in config.h
+Add the first two lines to your ```~/.xinirc``` or equivalent to run at start-up.

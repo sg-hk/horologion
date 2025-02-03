@@ -9,10 +9,6 @@
 
 #include "config.h"
 
-#define HRLG "/.local/share/horologion/"
-
-/*horologion bell*/
-
 double to_rad (double deg) {return deg * (M_PI / 180.0);}
 double to_deg (double rad) {return rad * (180.0 / M_PI);}
 double norm_deg (double deg)
@@ -120,9 +116,8 @@ int main(void)
         };
 
         char path[125];
-        snprintf(path, sizeof(path), "%s%s", getenv("HOME"), HRLG);
-        char logpath[128];
-        snprintf(logpath, sizeof(logpath), "%s%s", path, "log");
+        snprintf(path, sizeof(path), "%s%s", 
+                        getenv("HOME"), "/.local/share/horologion/");
 
         /* set up signal handlers for SIGINT (Ctrl+C) and SIGTERM (kill) */
         struct sigaction sa;
@@ -147,31 +142,24 @@ int main(void)
                         break;
                 }
 
-                /* compute time until next prayer and log it
-                 * this overwrites the file every time, to avoid an infinite log */
+                /* compute time until next prayer and print it */
                 until = sch_arr[index] - now_m;
                 int hours = until / 60;
                 int minutes = until % 60; 
-                FILE *log = fopen(logpath, "w");
-                if (!log) {
-                        perror("can't access log");
-                        exit(1);
-                }
-                fprintf(log, "%s in %02d:%02d\n", name[index], hours, minutes);
-                fclose(log);
+                printf("\r%s in %02d:%02d\n", name[index], hours, minutes);
 
                 /* notify user one minute ahead:
                  * - left click to dismiss
                  * - right click to display prayer */
                 char cmd[256];
                 if (until == 1) {
+                        printf("\a\n"); // bell sound on systems that have it
+
                         snprintf(cmd, sizeof(cmd),
                                 "herbe '%s prayer in one minute'"
                                 "&& %s -e sh -c 'cat %s%s | less'",
                                 name[index], terminal, path, name[index]
                                 );
-                        printf("\a\n"); // bell sound on systems that have it
-
                         pid_t pid = fork(); 
                         if (pid == -1) {
                                 perror("fork");
