@@ -1,11 +1,15 @@
+#include <fcntl.h>
+#include <getopt.h>
 #include <math.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
+
 
 #include "config.h"
 
@@ -65,7 +69,7 @@ double sun_event (double latitude, double longitude, double altitude,
         double zenith = get_zenith(altitude);
         double cosH = (cos(to_rad(zenith)) - (sin_dec * sin(to_rad(latitude))))
                 / (cos_dec * cos(to_rad(latitude))); // local hour angle
-        if (cosH > 1.0 && cosH < -1.0) return NAN; // sun never rises/sets
+        if (cosH > 1.0 || cosH < -1.0) return NAN; // sun never rises/sets
         double H = want_sunrise ? 360.0 - to_deg(acos(cosH)) :
                                   to_deg(acos(cosH));
         H /= 15.0;
@@ -87,8 +91,21 @@ void handle_signal(int signal)
         stop_flag = 1;
 }
 
-int main(void)
+int main(int argc, char *argv[])
 {
+        int fifo_flag = 0;
+        int opt;
+        while ((opt = getopt(argc, argv, "F")) != -1) {
+                switch (opt) {
+                        case 'F':
+                                fifo_flag = 1;
+                                break;
+                        default:
+                                fprintf(stderr, "usage %s -F\n", argv[0]); 
+                                exit(1);
+                }
+        }
+
         int sunrise = sun_event(latitude, longitude, altitude, true) * 60;
         int sunset = sun_event(latitude, longitude, altitude, false) * 60;
         int cn_hour = (sunset - sunrise) / 12; // canonical hour
@@ -127,11 +144,28 @@ int main(void)
         sigaction(SIGINT, &sa, NULL);
         sigaction(SIGTERM, &sa, NULL);
 
+        int fifo_fd = 0;
+
+        if (fifo_flag) {
+                /* fifo to write to instead of stdout */
+                struct stat st;
+                if (stat(PIPE_PATH, &st) == -1) {
+                        if (mkfifo(PIPE_PATH, 0666) == -1) {
+                                perror("mkfifo");
+                                exit(1);
+                        }
+                }
+                fifo_fd = open(PIPE_PATH, O_WRONLY);
+                if (fifo_fd == -1) {
+                        perror("open fifo");
+                        exit(1);
+                }
+        }
+
         while (!stop_flag) {
                 time_t now = time(NULL);
                 struct tm *t = localtime(&now);
-                int hh = t->tm_hour, mm = t->tm_min;
-                int now_m = hh * 60 + mm;
+                int now_m = t->tm_hour * 60 + t->tm_min;
 
                 /* determine the next prayer and compute countdown */
                 int index = 0, until = 0;
@@ -146,13 +180,17 @@ int main(void)
                 int cnthr = until / 60;
                 int cntmn = until % 60; 
 
-                /* add date and time, print */
-                char date[32];
-                strftime(date, sizeof(date), "%A, %d %b", t);
-                printf("\r%02d:%02d %s, %s in %02d:%02d\n", 
-                        hh, mm, date, name[index], cnthr, cntmn);
-
-
+                if (fifo_flag && fifo_fd) {
+                        /* write to fifo */
+                        dprintf(fifo_fd,
+                                "%s in %02d:%02d\n", 
+                                name[index], cnthr, cntmn);
+                } else {
+                        /* write to stdout */
+                        printf("\r%s in %02d:%02d", 
+                                name[index], cnthr, cntmn);
+                        fflush(stdout);
+                }
 
                 /* notify user one minute ahead:
                  * - left click to dismiss
@@ -182,5 +220,7 @@ int main(void)
                 sleep(sleep_for);
         }
 
+        if (fifo_fd)
+                close(fifo_fd);
         return 0;
 }
